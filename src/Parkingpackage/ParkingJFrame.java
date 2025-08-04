@@ -26,11 +26,12 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import javax.swing.Timer;
 
-public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
+public class ParkingJFrame extends javax.swing.JFrame {
 
-    private int secs, mins, hours;
-    private Thread thread1, thread2;
+    private Timer clockTimer;
+    private Thread voiceThread;
     private Color[] color;
     private JButton[][] jb;
     private JTextField[] txtFieldRow;
@@ -40,13 +41,12 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
     private String speakingText;
     private boolean isKeyPressed = false;
 
-    public ParkingJFrame() {
+    public ParkingJFrame() {   
         initComponents();
         initConfigScreen();
         initConfig();
+        startClockThread();
 
-        thread1 = new Thread(this);
-        thread1.start();
         jLabelDate.setText(date());
         placesAvailableRow();
         placesAvailableColumn();
@@ -60,6 +60,8 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
 
     private void initConfig() {
 
+        System.setProperty("freetts.voices","com.sun.speech.freetts.en.us.cmu_us_kal.KevinVoiceDirectory");
+        
         keyboardlistener();
 
         color = new Color[]{Color.BLUE, Color.RED, Color.YELLOW};
@@ -96,6 +98,41 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
             }
         }
     }
+    
+    private void startClockThread() {
+        clockTimer = new Timer(1000, e -> {
+            LocalDateTime now = LocalDateTime.now();
+            
+            jLabelHours.setText(String.format("%02d", now.getHour()));
+            jLabelMinutes.setText(String.format("%02d", now.getMinute()));
+            jLabelSeconds.setText(String.format("%02d", now.getSecond()));
+        });
+
+        clockTimer.setInitialDelay(0);
+        clockTimer.start();
+    }
+
+   
+    private void startVoiceThread(String speakingText) {
+    voiceThread = new Thread(() -> {
+        try {
+            VoiceManager manager = VoiceManager.getInstance();
+            Voice voice = manager.getVoice("kevin16");
+
+            if (voice != null) {
+                voice.allocate();
+                voice.speak(speakingText);
+                voice.deallocate();
+            } else {
+                System.err.println("'kevin16' was not found");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    });
+
+    voiceThread.start();
+}
 
     private void keyboardlistener() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
@@ -114,7 +151,8 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
 
     public void readKeyBoard(KeyEvent event) {
         try {
-            jButtonAdd.doClick();
+            jButtonAdd.doClick();   
+            event.consume();        
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1961,7 +1999,7 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                .addContainerGap(66, Short.MAX_VALUE)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jTextField1, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jTextField2, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -2178,11 +2216,11 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
             .addGroup(jPanel2Layout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(jButtonTalk, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(18, 18, 18)
-                .addComponent(jButtonReset, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jButtonAdd, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap())
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jButtonReset, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -2201,8 +2239,8 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
                 .addGap(118, 118, 118)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(jButtonReset, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jButtonTalk, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(jButtonAdd, javax.swing.GroupLayout.DEFAULT_SIZE, 100, Short.MAX_VALUE))
+                    .addComponent(jButtonAdd, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jButtonTalk, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                 .addContainerGap())
         );
 
@@ -2301,27 +2339,40 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
 
     private void jButtonAddActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonAddActionPerformed
         try {
-            int r = Integer.parseInt(JOptionPane.showInputDialog("Row? "));
-            int c = Integer.parseInt(JOptionPane.showInputDialog("Column? "));
+            int r = Integer.parseInt(JOptionPane.showInputDialog("Row? (0-7)"));
+            int c = Integer.parseInt(JOptionPane.showInputDialog("Column? (0-9)"));
+
+            // Validar rango
+            if (r < 0 || r > 7) {
+                JOptionPane.showMessageDialog(null, "Row must be between 0 and 7.");
+                return;  // Salir del método
+            }
+            if (c < 0 || c > 9) {
+                JOptionPane.showMessageDialog(null, "Column must be between 0 and 9.");
+                return;  // Salir del método
+            }
+
+            // Si pasa validación, actualiza la matriz
             matrix[r][c] = 1 - matrix[r][c];
             jb[r][c].setBackground(color[matrix[r][c]]);
-            jb[r][c].setText(matrix[r][c] + "");
+            jb[r][c].setText(String.valueOf(matrix[r][c]));
+
             placesAvailableRow();
             placesAvailableColumn();
             speakingText = capacity();
+
             try {
                 writeToFile();
             } catch (Exception ex) {
                 System.out.println("Failed to write file: " + ex);
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Enter a valid number: " + e);
+            JOptionPane.showMessageDialog(null, "Enter a valid number: " + e.getMessage());
         }
     }//GEN-LAST:event_jButtonAddActionPerformed
 
     private void jButtonTalkActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonTalkActionPerformed
-        thread2 = new Thread(this);
-        thread2.start();
+        startVoiceThread(speakingText);
     }//GEN-LAST:event_jButtonTalkActionPerformed
 
     private void jButtonResetActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonResetActionPerformed
@@ -2400,8 +2451,8 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
         String txt = "";
         txt += "The number of parking spaces is " + totalPlaces + "\n\n";
         int totalPlacesAvailable = 0;
-        for (int row = 0; row < RowMaxNum; row++) { //Reccorer filas
-            for (int column = 0; column < ColumnMaxNum; column++) { //Reccorer columnas
+        for (int row = 0; row < RowMaxNum; row++) {
+            for (int column = 0; column < ColumnMaxNum; column++) { 
                 if (matrix[row][column] == 0) {
                     totalPlacesAvailable++;
                 }
@@ -2575,28 +2626,5 @@ public class ParkingJFrame extends javax.swing.JFrame implements Runnable {
     private javax.swing.JTextField jTextField9;
     // End of variables declaration//GEN-END:variables
 
-    @Override
-    public void run() {
-        Thread ct = Thread.currentThread();
-        Thread ct2 = Thread.currentThread();
-
-        while (ct == thread1) {
-            LocalDateTime now = LocalDateTime.now();
-            secs = now.getSecond();
-            mins = now.getMinute();
-            hours = now.getHour();
-            jLabelSeconds.setText("" + secs);
-            jLabelMinutes.setText("" + mins);
-            jLabelHours.setText(hours + "");
-        }
-        if (ct2 == thread2) {
-            VoiceManager manager = VoiceManager.getInstance();
-            Voice voice = manager.getVoice("kevin16");
-            voice.allocate();
-            voice.speak(speakingText);
-            voice.deallocate();
-            thread2.interrupt();
-        }
-    }
 
 }
