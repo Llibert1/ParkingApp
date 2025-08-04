@@ -1,9 +1,8 @@
 /*
-Escuela Monlau
-M3
-Autor: Llibert
-MATRICES
- */
+Author: Llibert Matarredona
+Higher degree in multiplatform application development
+*/
+
 package Parkingpackage;
 
 import java.awt.Color;
