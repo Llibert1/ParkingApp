@@ -8,9 +8,7 @@ import java.awt.Color;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
-import java.util.Date;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -24,11 +22,16 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import javax.swing.Timer;
 
 public class ParkingJFrame extends javax.swing.JFrame {
 
+    private DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     private Timer clockTimer;
+    private String currentDate = "";
     private Thread voiceThread;
     private Color[] color;
     private JButton[][] jb;
@@ -44,8 +47,9 @@ public class ParkingJFrame extends javax.swing.JFrame {
         initConfigScreen();
         initConfig();
         startClockThread();
+        initDate();
+        startDateWatcher();
 
-        jLabelDate.setText(date());
         placesAvailableRow();
         placesAvailableColumn();
         speakingText = capacity();
@@ -99,15 +103,29 @@ public class ParkingJFrame extends javax.swing.JFrame {
 
     private void startClockThread() {
         clockTimer = new Timer(1000, e -> {
-            LocalDateTime now = LocalDateTime.now();
-
-            jLabelHours.setText(String.format("%02d", now.getHour()));
-            jLabelMinutes.setText(String.format("%02d", now.getMinute()));
-            jLabelSeconds.setText(String.format("%02d", now.getSecond()));
+            jLabelTime.setText(LocalDateTime.now().format(timeFormatter));
         });
 
         clockTimer.setInitialDelay(0);
         clockTimer.start();
+    }
+
+    public void initDate() {
+        currentDate = LocalDate.now().format(dateFormatter);
+        jLabelDate.setText(currentDate);
+    }
+
+    public void startDateWatcher() {
+        Timer dateTimer = new Timer(60_000, e -> {
+            String today = LocalDate.now().format(dateFormatter);
+            if (!today.equals(currentDate)) {
+                currentDate = today;
+                initDate();
+            }
+        });
+        currentDate = LocalDate.now().format(dateFormatter);
+        dateTimer.setInitialDelay(0);
+        dateTimer.start();
     }
 
     private void startVoiceThread(String speakingText) {
@@ -153,6 +171,110 @@ public class ParkingJFrame extends javax.swing.JFrame {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void placesAvailableRow() {
+        for (int r = 0; r < RowMaxNum; r++) {
+            for (int c = 0; c < ColumnMaxNum; c++) {
+                if (matrix[r][c] == 0) {
+                    matrix[r][ColumnMaxNum]++;
+                }
+            }
+            txtFieldColumn[r].setText(String.valueOf(matrix[r][ColumnMaxNum]));
+            if (matrix[r][ColumnMaxNum] >= 6) {
+                txtFieldColumn[r].setForeground(Color.GREEN);
+            } else if (matrix[r][ColumnMaxNum] == 4 || matrix[r][ColumnMaxNum] == 5) {
+                txtFieldColumn[r].setForeground(Color.ORANGE);
+            } else {
+                txtFieldColumn[r].setForeground(Color.RED);
+            }
+            matrix[r][ColumnMaxNum] = 0;
+        }
+    }
+
+    private void placesAvailableColumn() {
+        int placesAvailableColumn = 0;
+        String txt = "";
+        for (int c = 0; c < ColumnMaxNum; c++) {
+            for (int r = 0; r < RowMaxNum; r++) {
+                if (matrix[r][c] == 0) {
+                    placesAvailableColumn++;
+                }
+            }
+            txt = "" + placesAvailableColumn;
+            txtFieldRow[c].setText(txt);
+            if (placesAvailableColumn >= 5) {
+                txtFieldRow[c].setForeground(Color.GREEN);
+            } else if (placesAvailableColumn >= 3 && placesAvailableColumn <= 4) {
+                txtFieldRow[c].setForeground(Color.ORANGE);
+            } else {
+                txtFieldRow[c].setForeground(Color.RED);
+            }
+            placesAvailableColumn = 0;
+        }
+    }
+
+    private String capacity() {
+        String speakingText;
+        int totalPlaces = (RowMaxNum * ColumnMaxNum);
+        float percentageOccupation;
+        int enteredCars;
+        String txt = "";
+        txt += "The number of parking spaces is " + totalPlaces + "\n\n";
+        int totalPlacesAvailable = 0;
+        for (int row = 0; row < RowMaxNum; row++) {
+            for (int column = 0; column < ColumnMaxNum; column++) {
+                if (matrix[row][column] == 0) {
+                    totalPlacesAvailable++;
+                }
+            }
+        }
+        txt += "There is a total of " + totalPlacesAvailable + " available parking spaces\n\n";
+
+        percentageOccupation = ((float) totalPlaces - (float) totalPlacesAvailable) / (float) totalPlaces * 100;
+        txt += "The % occupancy is " + String.format("%.2f", percentageOccupation) + " percent\n\n";
+
+        enteredCars = (int) (totalPlaces - totalPlacesAvailable);
+
+        txt += "A total of " + enteredCars + " cars in the parking lot\n\n";
+        jTextArea3.setText(txt);
+        speakingText = txt;
+        return speakingText;
+    }
+
+    private void writeToFile() throws IOException {
+        FileWriter fw = new FileWriter("pk.txt");
+        BufferedWriter bw = new BufferedWriter(fw);
+
+        for (int f = 0; f < RowMaxNum + 1; f++) {
+            for (int c = 0; c < ColumnMaxNum + 1; c++) {
+                bw.write(matrix[f][c] + "\t");
+            }
+            bw.write("\n");
+        }
+        bw.flush();
+        bw.close();
+    }
+
+    File file;
+
+    private void readFile() throws FileNotFoundException, IOException {
+        String[] datos;
+        String tx;
+        int r = 0;
+
+        file = new File("pk.txt");
+        FileReader fr = new FileReader(file);
+        BufferedReader br = new BufferedReader(fr);
+
+        while ((tx = br.readLine()) != null) {
+            datos = tx.split("\t");
+            for (int c = 0; c < datos.length; c++) {
+                matrix[r][c] = Integer.parseInt(datos[c]);
+            }
+            r++;
+        }
+        fr.close();
     }
 
     @SuppressWarnings("unchecked")
@@ -260,16 +382,12 @@ public class ParkingJFrame extends javax.swing.JFrame {
         jTextField19 = new javax.swing.JTextField();
         jPanel2 = new javax.swing.JPanel();
         jLabelDate = new javax.swing.JLabel();
-        jLabelMinutes = new javax.swing.JLabel();
-        jLabelHours = new javax.swing.JLabel();
-        jLabelSeconds = new javax.swing.JLabel();
-        jLabel2 = new javax.swing.JLabel();
-        jLabel3 = new javax.swing.JLabel();
         jButtonAdd = new javax.swing.JButton();
         jScrollPane3 = new javax.swing.JScrollPane();
         jTextArea3 = new javax.swing.JTextArea();
         jButtonTalk = new javax.swing.JButton();
         jButtonReset = new javax.swing.JButton();
+        jLabelTime = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setResizable(false);
@@ -2125,24 +2243,6 @@ public class ParkingJFrame extends javax.swing.JFrame {
         jLabelDate.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         jLabelDate.setText("DD/MM/YYYY");
 
-        jLabelMinutes.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
-        jLabelMinutes.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jLabelMinutes.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
-
-        jLabelHours.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
-        jLabelHours.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jLabelHours.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
-
-        jLabelSeconds.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
-        jLabelSeconds.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jLabelSeconds.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
-
-        jLabel2.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
-        jLabel2.setText(":");
-
-        jLabel3.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
-        jLabel3.setText(":");
-
         jButtonAdd.setBackground(new java.awt.Color(0, 102, 0));
         jButtonAdd.setFont(new java.awt.Font("Dialog", 1, 24)); // NOI18N
         jButtonAdd.setText("ADD");
@@ -2181,43 +2281,33 @@ public class ParkingJFrame extends javax.swing.JFrame {
             }
         });
 
+        jLabelTime.setFont(new java.awt.Font("Tahoma", 1, 18)); // NOI18N
+        jLabelTime.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        jLabelTime.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
-                .addContainerGap(173, Short.MAX_VALUE)
+            .addGroup(jPanel2Layout.createSequentialGroup()
+                .addGap(37, 37, 37)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabelDate, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, 215, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
-                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabelHours, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addGroup(jPanel2Layout.createSequentialGroup()
-                                .addGap(30, 30, 30)
-                                .addComponent(jLabel3, javax.swing.GroupLayout.PREFERRED_SIZE, 10, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(jPanel2Layout.createSequentialGroup()
-                                .addGap(30, 30, 30)
-                                .addComponent(jLabelMinutes, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(jPanel2Layout.createSequentialGroup()
-                                .addGap(60, 60, 60)
-                                .addComponent(jLabelSeconds, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(jPanel2Layout.createSequentialGroup()
-                                .addGap(60, 60, 60)
-                                .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 10, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                        .addGap(60, 60, 60)))
-                .addGap(162, 162, 162))
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addComponent(jButtonTalk, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jButtonAdd, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jButtonReset, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 398, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(0, 37, Short.MAX_VALUE))
             .addGroup(jPanel2Layout.createSequentialGroup()
-                .addGap(78, 78, 78)
-                .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 398, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(0, 0, Short.MAX_VALUE))
-            .addGroup(jPanel2Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jButtonTalk, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jButtonAdd, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jButtonReset, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(128, 128, 128)
+                .addComponent(jLabelDate, javax.swing.GroupLayout.PREFERRED_SIZE, 215, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(jLabelTime, javax.swing.GroupLayout.PREFERRED_SIZE, 113, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(176, 176, 176))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -2225,20 +2315,15 @@ public class ParkingJFrame extends javax.swing.JFrame {
                 .addGap(55, 55, 55)
                 .addComponent(jLabelDate, javax.swing.GroupLayout.PREFERRED_SIZE, 86, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabelHours, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel3, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabelMinutes, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabelSeconds, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGap(32, 32, 32)
-                .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 471, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(118, 118, 118)
+                .addComponent(jLabelTime, javax.swing.GroupLayout.PREFERRED_SIZE, 60, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(33, 33, 33)
+                .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 448, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(48, 48, 48)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(jButtonReset, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(jButtonAdd, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jButtonTalk, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap())
+                    .addComponent(jButtonTalk, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(98, 98, 98))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -2250,7 +2335,7 @@ public class ParkingJFrame extends javax.swing.JFrame {
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(58, 58, 58)
                 .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(304, Short.MAX_VALUE))
+                .addContainerGap(378, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -2283,41 +2368,6 @@ public class ParkingJFrame extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_jButton1and1ActionPerformed
 
-    private void writeToFile() throws IOException {
-        FileWriter fw = new FileWriter("pk.txt");
-        BufferedWriter bw = new BufferedWriter(fw);
-
-        for (int f = 0; f < RowMaxNum + 1; f++) {
-            for (int c = 0; c < ColumnMaxNum + 1; c++) {
-                bw.write(matrix[f][c] + "\t");
-            }
-            bw.write("\n");
-        }
-        bw.flush();
-        bw.close();
-    }
-
-    File file;
-
-    private void readFile() throws FileNotFoundException, IOException {
-        String[] datos;
-        String tx;
-        int r = 0;
-
-        file = new File("pk.txt");
-        FileReader fr = new FileReader(file);
-        BufferedReader br = new BufferedReader(fr);
-
-        while ((tx = br.readLine()) != null) {
-            datos = tx.split("\t");
-            for (int c = 0; c < datos.length; c++) {
-                matrix[r][c] = Integer.parseInt(datos[c]);
-            }
-            r++;
-        }
-        fr.close();
-    }
-
     private void jButton1and1MouseMoved(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jButton1and1MouseMoved
         JButton jbt = (JButton) evt.getSource();
         String name = jbt.getName(); //f+"and"+c
@@ -2341,11 +2391,11 @@ public class ParkingJFrame extends javax.swing.JFrame {
 
             if (r < 0 || r > 7) {
                 JOptionPane.showMessageDialog(null, "Row must be between 0 and 7.");
-                return; 
+                return;
             }
             if (c < 0 || c > 9) {
                 JOptionPane.showMessageDialog(null, "Column must be between 0 and 9.");
-                return;  
+                return;
             }
             matrix[r][c] = 1 - matrix[r][c];
             jb[r][c].setBackground(color[matrix[r][c]]);
@@ -2389,81 +2439,6 @@ public class ParkingJFrame extends javax.swing.JFrame {
         }
         file.delete();
     }//GEN-LAST:event_jButtonResetActionPerformed
-
-    public static String date() {
-        Date date = new Date();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/YYYY");
-        return dateFormat.format(date);
-    }
-
-    private void placesAvailableRow() {
-        for (int r = 0; r < RowMaxNum; r++) {
-            for (int c = 0; c < ColumnMaxNum; c++) {
-                if (matrix[r][c] == 0) {
-                    matrix[r][ColumnMaxNum]++;
-                }
-            }
-            txtFieldColumn[r].setText(String.valueOf(matrix[r][ColumnMaxNum]));
-            if (matrix[r][ColumnMaxNum] >= 6) {
-                txtFieldColumn[r].setForeground(Color.GREEN);
-            } else if (matrix[r][ColumnMaxNum] == 4 || matrix[r][ColumnMaxNum] == 5) {
-                txtFieldColumn[r].setForeground(Color.ORANGE);
-            } else {
-                txtFieldColumn[r].setForeground(Color.RED);
-            }
-            matrix[r][ColumnMaxNum] = 0;
-        }
-    }
-
-    private void placesAvailableColumn() {
-        int placesAvailableColumn = 0;
-        String txt = "";
-        for (int c = 0; c < ColumnMaxNum; c++) {
-            for (int r = 0; r < RowMaxNum; r++) {
-                if (matrix[r][c] == 0) {
-                    placesAvailableColumn++;
-                }
-            }
-            txt = "" + placesAvailableColumn;
-            txtFieldRow[c].setText(txt);
-            if (placesAvailableColumn >= 5) {
-                txtFieldRow[c].setForeground(Color.GREEN);
-            } else if (placesAvailableColumn >= 3 && placesAvailableColumn <= 4) {
-                txtFieldRow[c].setForeground(Color.ORANGE);
-            } else {
-                txtFieldRow[c].setForeground(Color.RED);
-            }
-            placesAvailableColumn = 0;
-        }
-    }
-
-    private String capacity() {
-        String speakingText;
-        int totalPlaces = (RowMaxNum * ColumnMaxNum);
-        float percentageOccupation;
-        int enteredCars;
-        String txt = "";
-        txt += "The number of parking spaces is " + totalPlaces + "\n\n";
-        int totalPlacesAvailable = 0;
-        for (int row = 0; row < RowMaxNum; row++) {
-            for (int column = 0; column < ColumnMaxNum; column++) {
-                if (matrix[row][column] == 0) {
-                    totalPlacesAvailable++;
-                }
-            }
-        }
-        txt += "There is a total of " + totalPlacesAvailable + " available parking spaces\n\n";
-
-        percentageOccupation = ((float) totalPlaces - (float) totalPlacesAvailable) / (float) totalPlaces * 100;
-        txt += "The % occupancy is " + String.format("%.2f", percentageOccupation) + " percent\n\n";
-
-        enteredCars = (int) (totalPlaces - totalPlacesAvailable);
-
-        txt += "A total of " + enteredCars + " cars in the parking lot\n\n";
-        jTextArea3.setText(txt);
-        speakingText = txt;
-        return speakingText;
-    }
 
     public static void main(String args[]) {
 
@@ -2590,12 +2565,8 @@ public class ParkingJFrame extends javax.swing.JFrame {
     private javax.swing.JButton jButtonAdd;
     private javax.swing.JButton jButtonReset;
     private javax.swing.JButton jButtonTalk;
-    private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabelDate;
-    private javax.swing.JLabel jLabelHours;
-    private javax.swing.JLabel jLabelMinutes;
-    private javax.swing.JLabel jLabelSeconds;
+    private javax.swing.JLabel jLabelTime;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane3;
