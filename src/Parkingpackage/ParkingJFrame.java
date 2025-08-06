@@ -1,8 +1,7 @@
 /*
 Author: Llibert Matarredona
 Project developed during the Higher National Diploma in Multiplatform Application Development
-*/
-
+ */
 package Parkingpackage;
 
 import java.awt.Color;
@@ -40,7 +39,7 @@ public class ParkingJFrame extends javax.swing.JFrame {
     private String speakingText;
     private boolean isKeyPressed = false;
 
-    public ParkingJFrame() {   
+    public ParkingJFrame() {
         initComponents();
         initConfigScreen();
         initConfig();
@@ -59,8 +58,8 @@ public class ParkingJFrame extends javax.swing.JFrame {
 
     private void initConfig() {
 
-        System.setProperty("freetts.voices","com.sun.speech.freetts.en.us.cmu_us_kal.KevinVoiceDirectory");
-        
+        System.setProperty("freetts.voices", "com.sun.speech.freetts.en.us.cmu_us_kal.KevinVoiceDirectory");
+
         keyboardlistener();
 
         color = new Color[]{Color.BLUE, Color.RED, Color.YELLOW};
@@ -97,11 +96,11 @@ public class ParkingJFrame extends javax.swing.JFrame {
             }
         }
     }
-    
+
     private void startClockThread() {
         clockTimer = new Timer(1000, e -> {
             LocalDateTime now = LocalDateTime.now();
-            
+
             jLabelHours.setText(String.format("%02d", now.getHour()));
             jLabelMinutes.setText(String.format("%02d", now.getMinute()));
             jLabelSeconds.setText(String.format("%02d", now.getSecond()));
@@ -111,27 +110,26 @@ public class ParkingJFrame extends javax.swing.JFrame {
         clockTimer.start();
     }
 
-   
     private void startVoiceThread(String speakingText) {
-    voiceThread = new Thread(() -> {
-        try {
-            VoiceManager manager = VoiceManager.getInstance();
-            Voice voice = manager.getVoice("kevin16");
+        voiceThread = new Thread(() -> {
+            try {
+                VoiceManager manager = VoiceManager.getInstance();
+                Voice voice = manager.getVoice("kevin16");
 
-            if (voice != null) {
-                voice.allocate();
-                voice.speak(speakingText);
-                voice.deallocate();
-            } else {
-                System.err.println("'kevin16' was not found");
+                if (voice != null) {
+                    voice.allocate();
+                    voice.speak(speakingText);
+                    voice.deallocate();
+                } else {
+                    System.err.println("'kevin16' was not found");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    });
+        });
 
-    voiceThread.start();
-}
+        voiceThread.start();
+    }
 
     private void keyboardlistener() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
@@ -150,8 +148,8 @@ public class ParkingJFrame extends javax.swing.JFrame {
 
     public void readKeyBoard(KeyEvent event) {
         try {
-            jButtonAdd.doClick();   
-            event.consume();        
+            jButtonAdd.doClick();
+            event.consume();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -2341,17 +2339,14 @@ public class ParkingJFrame extends javax.swing.JFrame {
             int r = Integer.parseInt(JOptionPane.showInputDialog("Row? (0-7)"));
             int c = Integer.parseInt(JOptionPane.showInputDialog("Column? (0-9)"));
 
-            // Validar rango
             if (r < 0 || r > 7) {
                 JOptionPane.showMessageDialog(null, "Row must be between 0 and 7.");
-                return;  // Salir del método
+                return; 
             }
             if (c < 0 || c > 9) {
                 JOptionPane.showMessageDialog(null, "Column must be between 0 and 9.");
-                return;  // Salir del método
+                return;  
             }
-
-            // Si pasa validación, actualiza la matriz
             matrix[r][c] = 1 - matrix[r][c];
             jb[r][c].setBackground(color[matrix[r][c]]);
             jb[r][c].setText(String.valueOf(matrix[r][c]));
@@ -2451,7 +2446,7 @@ public class ParkingJFrame extends javax.swing.JFrame {
         txt += "The number of parking spaces is " + totalPlaces + "\n\n";
         int totalPlacesAvailable = 0;
         for (int row = 0; row < RowMaxNum; row++) {
-            for (int column = 0; column < ColumnMaxNum; column++) { 
+            for (int column = 0; column < ColumnMaxNum; column++) {
                 if (matrix[row][column] == 0) {
                     totalPlacesAvailable++;
                 }
@@ -2459,7 +2454,7 @@ public class ParkingJFrame extends javax.swing.JFrame {
         }
         txt += "There is a total of " + totalPlacesAvailable + " available parking spaces\n\n";
 
-        percentageOccupation = ((float)totalPlaces - (float)totalPlacesAvailable) / (float)totalPlaces * 100;
+        percentageOccupation = ((float) totalPlaces - (float) totalPlacesAvailable) / (float) totalPlaces * 100;
         txt += "The % occupancy is " + String.format("%.2f", percentageOccupation) + " percent\n\n";
 
         enteredCars = (int) (totalPlaces - totalPlacesAvailable);
@@ -2624,6 +2619,5 @@ public class ParkingJFrame extends javax.swing.JFrame {
     private javax.swing.JTextField jTextField8;
     private javax.swing.JTextField jTextField9;
     // End of variables declaration//GEN-END:variables
-
 
 }
