@@ -1,6 +1,6 @@
 /*
 Author: Llibert Matarredona
-Higher degree in multiplatform application development
+Project developed during the Higher National Diploma in Multiplatform Application Development
 */
 
 package Parkingpackage;
